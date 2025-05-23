@@ -32,7 +32,7 @@ INSTALL_DIR="/opt/$APP_NAME"
 VENV_DIR="$INSTALL_DIR/venv"
 SERVICE_NAME="$APP_NAME.service"
 LOG_DIR="/var/log/$APP_NAME"
-GITHUB_REPO=""
+GITHUB_REPO="https://raw.githubusercontent.com/dobrinmihai/piControl/refs/heads/main/src-helper/main.py"
 TEMP_DIR="/tmp/$APP_NAME-setup"
 
 echo_info "Setting up PiControl Helper for user: $CURRENT_USER"
