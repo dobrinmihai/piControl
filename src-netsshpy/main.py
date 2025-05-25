@@ -12,7 +12,7 @@ socketio = SocketIO(app, cors_allowed_origins="*")
 
 clients = {}
 
-IP_RANGE = "192.168.1.0/24"  #  modifică dacă ai altă rețea
+IP_RANGE = "192.168.0.1/24"  #  modifică dacă ai altă rețea
 
 def get_ip_mac_nmap():
     try:

@@ -21,7 +21,7 @@
     // Device type options
     const deviceTypes = [
         { id: "raspberrypi", name: "Raspberry Pi" },
-        { id: "esp", name: "ESP 32" }
+        { id: "esp32", name: "ESP 32" }
     ];
 
     // Fetch existing devices from PocketBase

@@ -22,11 +22,12 @@
     let passwordInput = $state("");
     const deviceTypes = [
         { id: "raspberrypi", name: "Raspberry Pi" },
-        { id: "esp", name: "ESP 32" }
+        { id: "esp32", name: "ESP 32" }
     ];
 
     let showDeleteConfirmModal = $state(false);
     let isDeleting = $state(false);
+
 
     async function getHelperStatus() {
     try {
@@ -305,19 +306,27 @@
                             Edit Device
                         </button>
                         <button
-                            class="h-9 px-4 py-2 font-mono text-xs border border-neutral-800 bg-transparent hover:bg-white inline-flex items-center justify-center"
-                            onclick={openCredentialsModal}
-                        >
-                            <Icon icon="lucide:terminal" class="h-3 w-3 mr-2" />
-                            Connect to Terminal
-                        </button>
-                        <button
                             class="h-9 px-4 py-2 font-mono text-xs border border-red-800 text-red-500 bg-transparent hover:bg-red-900/20 inline-flex items-center justify-center"
                             onclick={openDeleteConfirmModal}
                         >
                             <Icon icon="lucide:trash-2" class="h-3 w-3 mr-2" />
                             Delete Device
                         </button>
+                         {#if device.type === "raspberrypi"}
+                            <button
+                                class="h-9 px-4 py-2 font-mono text-xs border border-neutral-800 bg-transparent hover:bg-white inline-flex items-center justify-center"
+                                onclick={openCredentialsModal}
+                            >
+                                <Icon icon="lucide:terminal" class="h-3 w-3 mr-2" />
+                                Connect to SSH
+                            </button>
+                        {:else if device.type === "esp32"}
+                        <span></span>
+                        {:else}
+                            <span class="text-red-500 font-mono text-xs">
+                                Unsupported device type for SSH connection
+                            </span>
+                        {/if}
                         {#await getHelperStatus() then status}
     <div class="border-b border-neutral-800 py-3">
         <div class="flex justify-between items-center">
