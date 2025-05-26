@@ -58,7 +58,6 @@ def start_ssh(data):
         ssh.connect(hostname, username=username, password=password)
         chan = ssh.invoke_shell()
         clients[sid] = chan
-
         def read_from_ssh():
             try:
                 while True:

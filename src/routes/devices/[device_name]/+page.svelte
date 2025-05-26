@@ -221,7 +221,7 @@
     <nav class="mb-6">
         <a
             href="/devices"
-            class="inline-flex items-center font-mono text-sm text-neutral-400 hover:text-white"
+            class="inline-flex items-center font-mono text-sm text-neutral-800 hover:text-neutral-400"
         >
             <Icon icon="lucide:arrow-left" class="h-4 w-4 mr-2" />
             Back to Devices
@@ -299,7 +299,7 @@
                 <div class="p-4">
                     <div class="flex flex-col space-y-3">
                         <button
-                            class="h-9 px-4 py-2 font-mono text-xs bg-white text-black hover:bg-neutral-200 inline-flex items-center justify-center"
+                            class="h-9 px-4 py-2 font-mono text-xs bg-white text-black border border-neutral-800 hover:bg-neutral-200 inline-flex items-center justify-center"
                             onclick={openEditDeviceModal}
                         >
                             <Icon icon="lucide:edit" class="h-3 w-3 mr-2" />
@@ -327,7 +327,10 @@
                                 Unsupported device type for SSH connection
                             </span>
                         {/if}
-                        {#await getHelperStatus() then status}
+                        {#if device.type === "raspberrypi"}
+                            {#await getHelperStatus() then status}
+
+    <!-- Helper Status -->              
     <div class="border-b border-neutral-800 py-3">
         <div class="flex justify-between items-center">
             <span class="font-mono text-sm text-neutral-400">Helper Status:</span>
@@ -357,6 +360,7 @@
         </div>
     </div>
 {/await}
+{/if}
                     </div>
                 </div>
             </div>

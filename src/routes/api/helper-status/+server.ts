@@ -9,7 +9,7 @@ export const GET: RequestHandler = async ({ url }) => {
     }
     
     try {
-        const response = await fetch(`http://${targetIp}:8220/status`);
+        const response = await fetch(`http://${targetIp}:8321/status`);
         
         if (!response.ok) {
             return json(
@@ -19,7 +19,16 @@ export const GET: RequestHandler = async ({ url }) => {
         }
         
         const data = await response.json();
-        return json(data);
+
+        // Normalize for ESP32
+        let normalized = data;
+        if (data.online === true || data.status === "online") {
+            normalized = { status: "running" };
+        } else if (data.online === false || data.status === "offline") {
+            normalized = { status: "stopped" };
+        }
+
+        return json(normalized);
     } catch (error) {
         console.error('Error fetching helper status:', error);
         return json({ error: 'Failed to connect to helper service' }, { status: 500 });
