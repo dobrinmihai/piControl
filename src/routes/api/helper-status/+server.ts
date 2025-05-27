@@ -9,7 +9,7 @@ export const GET: RequestHandler = async ({ url }) => {
     }
     
     try {
-        const response = await fetch(`http://${targetIp}:8321/status`);
+        const response = await fetch(`http://${targetIp}:8220/status`);
         
         if (!response.ok) {
             return json(

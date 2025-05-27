@@ -11,9 +11,11 @@
     
     // Package management states
     let packageQuery = $state('');
+    let installedPackageQuery = $state('');
     let installedPackages = $state<{name: string, version: string}[]>([]);
     let searchResults = $state<{name: string, description: string}[]>([]);
     let isLoadingPackages = $state(false);
+    let isLoadingSearch = $state(false);
     let packageInstallList = $state<string[]>([]);
     
     // Service management states
@@ -50,7 +52,7 @@
     
     async function searchPackages() {
         if (!packageQuery.trim()) return;
-        isLoadingPackages = true;
+        isLoadingSearch = true;
         try {
             const response = await fetch(`/api/helper-proxy?ip=${device.ip_addr}&endpoint=search&query=${packageQuery}`);
             if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
@@ -59,7 +61,7 @@
         } catch (error) {
             console.error("Error searching packages:", error);
         } finally {
-            isLoadingPackages = false;
+            isLoadingSearch = false;
         }
     }
     
@@ -222,6 +224,23 @@
                 </div>
                 
                 <div class="p-4">
+                    <!-- Search for Already Installed Packages -->
+                     <div class="mb-4 flex gap-2">
+                        <input
+                            type="text"
+                            bind:value={installedPackageQuery}
+                            placeholder="Search installed packages"
+                            class="flex-grow bg-zinc border border-neutral-800 p-2 font-mono text-sm"
+                            onkeydown={(e) => e.key === 'Enter' && e.preventDefault()}
+                        />
+                        <button
+                            class="h-9 px-4 py-2 font-mono text-xs bg-white text-black hover:bg-neutral-200"
+                            onclick={() => { /* No action needed, search is instant */ }}
+                            type="button"
+                        >
+                            Search
+                        </button>
+                    </div>
                     {#if isLoadingPackages}
                         <div class="py-4 text-center">
                             <Icon icon="lucide:loader" class="h-5 w-5 mx-auto animate-spin text-neutral-500" />
@@ -238,7 +257,9 @@
                                 <div class="col-span-3">Version</div>
                                 <div class="col-span-1"></div>
                             </div>
-                            {#each installedPackages as pkg}
+                            {#each installedPackages.filter(pkg =>
+                                pkg.name.toLowerCase().includes(installedPackageQuery.toLowerCase())
+                            ) as pkg}
                                 <div class="grid grid-cols-12 p-2 border-b border-neutral-200 last:border-b-0 items-center">
                                     <div class="col-span-8 font-mono text-sm">{pkg.name}</div>
                                     <div class="col-span-3 font-mono text-xs text-neutral-500">{pkg.version}</div>
@@ -285,7 +306,12 @@
                     </div>
                     
                     <!-- Search Results -->
-                    {#if searchResults.length > 0}
+                    {#if isLoadingSearch}
+                        <div class="py-4 text-center">
+                            <Icon icon="lucide:loader" class="h-5 w-5 mx-auto animate-spin text-neutral-500" />
+                            <p class="font-mono text-sm text-neutral-500 mt-2">Searching packages...</p>
+                        </div>
+                    {:else if searchResults.length > 0}
                         <div class="mb-4">
                             <h3 class="font-mono text-md font-bold mb-2">Search Results</h3>
                             <div class="border border-neutral-200 overflow-y-auto max-h-48">
