@@ -285,7 +285,7 @@
                 Cancel
             </button>
             <button 
-                class="h-9 px-4 py-2 font-mono text-xs bg-white text-black hover:bg-green-200 hover:text-black hover:border-green-500 hover:text-green-500 border border-zinc" 
+                class="h-9 px-4 py-2 font-mono text-xs bg-white text-black hover:bg-green-200 hover:border-green-500 hover:text-green-500 border border-zinc" 
                 onclick={addDeviceToPocketBase}
             >
                 Add Device

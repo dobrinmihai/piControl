@@ -21,7 +21,7 @@
     async function refreshStatuses() {
         for (const device of espDevices) {
             try {
-                const res = await fetch(`/api/helper-status?ip=${device.ip_addr}`);
+                const res = await fetch(`/api/esp-status?ip=${device.ip_addr}`);
                 const status = await res.json();
                 statuses[device.id] = status?.status === "running" ? "Online" : "Offline";
             } catch {
