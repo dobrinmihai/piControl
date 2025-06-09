@@ -1,7 +1,12 @@
 import { json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 
-export const GET: RequestHandler = async ({ url, request }) => {
+export const GET: RequestHandler = async ({ url, request, locals }) => {
+    // Check if user is authenticated
+    if (!locals.pb || !locals.pb.authStore.isValid) {
+        return json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
     const targetIp = url.searchParams.get('ip');
     const endpoint = url.searchParams.get('endpoint');
     
@@ -44,7 +49,12 @@ export const GET: RequestHandler = async ({ url, request }) => {
     }
 };
 
-export const POST: RequestHandler = async ({ url, request }) => {
+export const POST: RequestHandler = async ({ url, request, locals }) => {
+    // Check if user is authenticated
+    if (!locals.pb || !locals.pb.authStore.isValid) {
+        return json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
     const targetIp = url.searchParams.get('ip');
     const endpoint = url.searchParams.get('endpoint');
     

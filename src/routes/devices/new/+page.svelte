@@ -1,7 +1,6 @@
 <script lang="ts">
     import { enhance } from '$app/forms';
     import type { PageData } from './$types';
-    import { pb } from '$lib/pocketbase';
     import { onMount } from 'svelte';
     import Icon from '@iconify/svelte';
     
@@ -24,18 +23,24 @@
         { id: "esp32", name: "ESP 32" }
     ];
 
-    // Fetch existing devices from PocketBase
+    // Fetch existing devices from API
     async function fetchExistingDevices() {
         try {
             loading = true;
-            const records = await pb.collection('devices').getFullList({
-                fields: 'mac_addr'
+            const response = await fetch('/api/devices', {
+                credentials: 'include'
             });
+            
+            if (!response.ok) {
+                throw new Error('Failed to fetch devices');
+            }
+            
+            const data = await response.json();
             
             // Create a map of existing MAC addresses
             const existingMap: Record<string, boolean> = {};
-            records.forEach(record => {
-                existingMap[record.mac_addr] = true;
+            data.devices.forEach((device: any) => {
+                existingMap[device.mac_addr] = true;
             });
             
             existingDevices = existingMap;
@@ -81,7 +86,7 @@
         fetchExistingDevices();
     };
 }
-    // Add device to PocketBase
+    // Add device via API
     async function addDeviceToPocketBase() {
         if (!currentDevice) return;
 
@@ -89,28 +94,41 @@
             loading = true;
             error = "";
 
-            console.log('Sending to PocketBase:', {
+            console.log('Sending to API:', {
                 device_name: deviceName,
-                type: deviceType,
+                device_type: deviceType,
                 mac_addr: currentDevice.mac_address,
                 ip_addr: currentDevice.ip_address
             });
 
-            const result = await pb.collection('devices').create({
-                device_name: deviceName,
-                type: deviceType,
-                mac_addr: currentDevice.mac_address,
-                ip_addr: currentDevice.ip_address
+            const response = await fetch('/api/devices', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                credentials: 'include',
+                body: JSON.stringify({
+                    device_name: deviceName,
+                    device_type: deviceType,
+                    mac_addr: currentDevice.mac_address,
+                    ip_addr: currentDevice.ip_address
+                })
             });
 
-            console.log('PocketBase response:', result);
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.error || 'Failed to add device');
+            }
+
+            const result = await response.json();
+            console.log('API response:', result);
 
             // Update both selected and existing device maps
             selectDevice(currentDevice);
             existingDevices[currentDevice.mac_address] = true;
             closeModal();
         } catch (err) {
-            console.error('PocketBase error:', err);
+            console.error('API error:', err);
             error = err instanceof Error ? err.message : 'Unknown error occurred';
         } finally {
             loading = false;

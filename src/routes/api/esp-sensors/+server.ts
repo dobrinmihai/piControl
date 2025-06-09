@@ -1,11 +1,17 @@
 import { json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 
-export const GET: RequestHandler = async ({ url }) => {
+export const GET: RequestHandler = async ({ url, locals }) => {
+    // Check if user is authenticated
+    if (!locals.pb || !locals.pb.authStore.isValid) {
+        return json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
     const targetIp = url.searchParams.get('ip');
     if (!targetIp) {
         return json({ error: 'IP address is required' }, { status: 400 });
     }
+    
     try {
         const response = await fetch(`http://${targetIp}:8321/sensors`);
         if (!response.ok) {
