@@ -24,9 +24,12 @@ vite.config.ts.timestamp-*
 
 # PocketBase
 pb_data/
+pb_public/
+pb_hooks/node_modules/
 *.db
 pocketbase
 pocketbase.exe
+pocketbase_*
 
 # Python
 __pycache__/
@@ -38,6 +41,11 @@ __pycache__/
 venv/
 env/
 ENV/
+.pytest_cache/
+*.egg-info/
+dist/
+build/
+*.egg
 
 # Logs
 logs/
@@ -65,3 +73,6 @@ coverage/
 # Temporary files
 tmp/
 temp/
+*.tmp
+*.temp
+.cache/
