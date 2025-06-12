@@ -96,7 +96,7 @@
 
             console.log('Sending to API:', {
                 device_name: deviceName,
-                device_type: deviceType,
+                type: deviceType, // use 'type' everywhere
                 mac_addr: currentDevice.mac_address,
                 ip_addr: currentDevice.ip_address
             });
@@ -109,7 +109,7 @@
                 credentials: 'include',
                 body: JSON.stringify({
                     device_name: deviceName,
-                    device_type: deviceType,
+                    type: deviceType, // use 'type' everywhere
                     mac_addr: currentDevice.mac_address,
                     ip_addr: currentDevice.ip_address
                 })

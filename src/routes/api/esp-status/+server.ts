@@ -13,21 +13,52 @@ export const GET: RequestHandler = async ({ url, locals }) => {
     }
     
     try {
-        const response = await fetch(`http://${targetIp}:8321/status`);
+        // Set a shorter timeout for ESP32 devices (they should respond quickly if online)
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 3000); // 3 second timeout
+        
+        const response = await fetch(`http://${targetIp}:8321/status`, {
+            signal: controller.signal,
+            headers: {
+                'Content-Type': 'application/json',
+            }
+        });
+        
+        clearTimeout(timeoutId);
+        
         if (!response.ok) {
-            return json({ error: `Failed to fetch ESP32 status: ${response.statusText}` }, { status: response.status });
+            return json({ 
+                status: "offline", 
+                error: `ESP32 returned ${response.status}: ${response.statusText}` 
+            }, { status: 200 }); // Return 200 but mark device as offline
         }
+        
         const data = await response.json();
-        // Normalize if needed
+        
+        // Normalize the response
         let normalized = data;
-        if (data.online === true || data.status === "online") {
+        if (data.online === true || data.status === "online" || data.status === "running") {
             normalized = { status: "running" };
-        } else if (data.online === false || data.status === "offline") {
+        } else if (data.online === false || data.status === "offline" || data.status === "stopped") {
             normalized = { status: "stopped" };
+        } else {
+            // Default to running if we got a response
+            normalized = { status: "running" };
         }
+        
         return json(normalized);
-    } catch (error) {
-        console.error('Error fetching ESP32 status:', error);
-        return json({ error: 'Failed to connect to ESP32 status' }, { status: 500 });
+    } catch (error: any) {
+        console.error(`Error fetching ESP32 status from ${targetIp}:`, error.message);
+        
+        // If it's a timeout or connection error, the device is likely offline
+        if (error.name === 'AbortError' || error.code === 'UND_ERR_CONNECT_TIMEOUT' || error.cause?.code === 'UND_ERR_CONNECT_TIMEOUT') {
+            return json({ status: "offline", error: "Device unreachable" }, { status: 200 });
+        }
+        
+        // For other errors, still mark as offline but log the specific error
+        return json({ 
+            status: "offline", 
+            error: `Connection failed: ${error.message}` 
+        }, { status: 200 });
     }
 };

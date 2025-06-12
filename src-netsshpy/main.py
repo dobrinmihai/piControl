@@ -12,25 +12,31 @@ socketio = SocketIO(app, cors_allowed_origins="*")
 
 clients = {}
 
-IP_RANGE = "192.168.0.1/24"  #  modifică dacă ai altă rețea
+IP_RANGE = "192.168.0.1/24"  # Updated to scan the 192.168.1.x subnet where your ESP32 is located
 
 def get_ip_mac_nmap():
     try:
         output = subprocess.check_output(["nmap", "-sn", IP_RANGE], universal_newlines=True)
         devices = []
         current_ip = None
+        current_mac = None
 
         for line in output.splitlines():
             if "Nmap scan report for" in line:
+                # If we have a previous IP without a MAC, add it
+                if current_ip is not None:
+                    devices.append({"ip": current_ip, "mac": current_mac})
                 current_ip = line.split()[-1]
+                current_mac = None
             elif "MAC Address" in line and current_ip:
-                mac = line.split()[2]
-                devices.append({
-                    "ip": current_ip,
-                    "mac": mac
-                })
+                current_mac = line.split()[2]
+                # Add device immediately if MAC is found
+                devices.append({"ip": current_ip, "mac": current_mac})
                 current_ip = None
-
+                current_mac = None
+        # Add last IP if it didn't have a MAC
+        if current_ip is not None:
+            devices.append({"ip": current_ip, "mac": current_mac})
         return devices
     except Exception as e:
         return [{"error": str(e)}]

@@ -15,8 +15,22 @@ if (browser) {
             document.cookie = pb.authStore.exportToCookie({ httpOnly: false });
         } else {
             // Clear all auth-related cookies
-            document.cookie = 'pb_auth=; Path=/; Expires=Thu, 01 Jan 1970 00:00:01 GMT;';
-            document.cookie = 'pb_auth=; Path=/; Expires=Thu, 01 Jan 1970 00:00:01 GMT; Domain=localhost;';
+            document.cookie = 'pb_auth=; Path=/; Expires=Thu, 01 Jan 1970 00:00:01 GMT; SameSite=Lax;';
+            document.cookie = 'pb_auth=; Path=/; Expires=Thu, 01 Jan 1970 00:00:01 GMT; Domain=localhost; SameSite=Lax;';
+            document.cookie = 'pb_auth=; Path=/; Expires=Thu, 01 Jan 1970 00:00:01 GMT; Domain=127.0.0.1; SameSite=Lax;';
         }
     });
+    
+    // Auto-refresh auth token before it expires
+    setInterval(async () => {
+        if (pb.authStore.isValid) {
+            try {
+                await pb.collection('users').authRefresh();
+            } catch (error) {
+                console.error('Failed to refresh auth token:', error);
+                // If refresh fails, clear the auth store
+                pb.authStore.clear();
+            }
+        }
+    }, 4 * 60 * 1000); // Refresh every 4 minutes (tokens typically last 15 minutes)
 }

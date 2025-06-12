@@ -74,6 +74,11 @@
     }
 
     function updateDevice() {
+        if (!device.id) {
+            console.error("Device ID is missing. Cannot update device.", device);
+            alert("Error: Device ID is missing. Cannot update device. Please contact support or check device data integrity.");
+            return;
+        }
         pb.collection("devices")
             .update(device.id, editFormData)
             .then((record) => {
@@ -89,13 +94,20 @@
                 closeEditDeviceModal();
             })
             .catch((error) => {
-                console.error("Error updating device:", error);
+                console.error("Error updating device:", error, device, editFormData);
+                alert("Failed to update device: " + (error?.message || error));
             });
     }
 
     function deleteDevice() {
+        if (!device.id) {
+            console.error("Device ID is missing. Cannot delete device.", device);
+            alert("Error: Device ID is missing. Cannot delete device. Please contact support or check device data integrity.");
+            isDeleting = false;
+            closeDeleteConfirmModal();
+            return;
+        }
         isDeleting = true;
-
         pb.collection("devices")
             .delete(device.id)
             .then(() => {
@@ -104,7 +116,8 @@
                 isDeleting = false;
             })
             .catch((error) => {
-                console.error("Error deleting device:", error);
+                console.error("Error deleting device:", error, device);
+                alert("Failed to delete device: " + (error?.message || error));
                 isDeleting = false;
                 closeDeleteConfirmModal();
             });

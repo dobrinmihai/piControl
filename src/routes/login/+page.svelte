@@ -60,7 +60,7 @@
             </p>
         </div>
         
-        <form class="mt-8 space-y-6" on:submit={handleSubmit}>
+        <form class="mt-8 space-y-6" onsubmit={handleSubmit}>
             <input type="hidden" name="remember" value="true" />
             <div class="rounded-md shadow-sm space-y-4">
                 <div>
@@ -124,7 +124,7 @@
             <div class="mt-6">
                 <div class="relative">
                     <div class="absolute inset-0 flex items-center">
-                        <div class="w-full border-t border-neutral-600" />
+                        <div class="w-full border-t border-neutral-600"></div>
                     </div>
                     <div class="relative flex justify-center text-sm">
                         <span class="px-2 bg-neutral-900 text-neutral-400">Need an account?</span>
