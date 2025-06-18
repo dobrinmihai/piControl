@@ -86,56 +86,97 @@
 
 <div class="container mx-auto px-4 py-8 min-h-screen">
     <div class="flex justify-between items-center mb-8">
-        <h1 class="font-mono text-3xl font-bold tracking-tight">Devices</h1>
+        <div>
+            <h1 class="font-mono text-3xl font-bold tracking-tight">Devices</h1>
+            <h2 class="mt-2 font-mono text-lg text-neutral-600">Manage Your Connected Devices</h2>
+        </div>
         <div class="flex gap-2">
             {#if refreshing}
-                <button class="h-9 px-4 py-2 font-mono text-xs bg-neutral-200 text-neutral-600 inline-flex items-center" disabled>
-                    <Icon icon="lucide:refresh-cw" class="h-3 w-3 mr-2 animate-spin" /> Refreshing
+                <button class="px-4 py-2 font-mono text-xs bg-neutral-200 text-neutral-600 rounded inline-flex items-center" disabled>
+                    <Icon icon="lucide:refresh-cw" class="h-4 w-4 mr-2 animate-spin" /> Refreshing
                 </button>
             {:else}
-                <button on:click={refreshDevices} class="h-9 px-4 py-2 font-mono text-xs border border-neutral-300 hover:bg-neutral-50 inline-flex items-center">
-                    <Icon icon="lucide:refresh-cw" class="h-3 w-3 mr-2" /> Refresh
+                <button on:click={refreshDevices} class="px-4 py-2 font-mono text-xs border border-neutral-300 hover:bg-neutral-50 rounded inline-flex items-center transition-colors">
+                    <Icon icon="lucide:refresh-cw" class="h-4 w-4 mr-2" /> Refresh
                 </button>
             {/if}
             
             {#if isLoading}
-                <button class="h-9 px-4 py-2 font-mono text-xs bg-white text-black hover:bg-neutral-200 inline-flex items-center" aria-busy="true">
-                    <Icon icon="lucide:refresh-cw" class="h-3 w-3 mr-2 animate-spin" /> Loading
+                <button class="px-4 py-2 font-mono text-xs bg-neutral-800 text-white rounded inline-flex items-center" aria-busy="true">
+                    <Icon icon="lucide:refresh-cw" class="h-4 w-4 mr-2 animate-spin" /> Loading
                 </button>
             {:else}
-                <button on:click={handleAddDevice} class="h-9 px-4 py-2 font-mono text-xs bg-white text-black hover:bg-neutral-200 inline-flex items-center">
-                    <svg class="h-3 w-3 mr-2" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <path stroke-linecap="round" stroke-linejoin="round" d="M12 5v14m7-7H5"></path>
-                    </svg>
+                <button on:click={handleAddDevice} class="px-4 py-2 font-mono text-xs bg-neutral-800 text-white hover:bg-neutral-900 rounded inline-flex items-center transition-colors">
+                    <Icon icon="lucide:plus" class="h-4 w-4 mr-2" />
                     Add Device
                 </button>
             {/if}
         </div>
     </div>
-    <table class="w-full">
-        <thead>
-            <tr class="bg-neutral-100">
-                <th class="text-left font-mono text-xs p-2">Device Name</th>
-                <th class="text-left font-mono text-xs p-2">MAC Address</th>
-                <th class="text-left font-mono text-xs p-2">IP Address</th>
-                <th class="text-left font-mono text-xs p-2">Actions</th>
-            </tr>
-        </thead>
-        <tbody>
+
+    {#if devices.length === 0}
+        <div class="text-center py-12">
+            <Icon icon="lucide:router" class="h-16 w-16 mx-auto text-neutral-400 mb-4" />
+            <h3 class="font-mono text-lg font-semibold text-neutral-600 mb-2">No devices found</h3>
+            <p class="font-mono text-sm text-neutral-500 mb-6">Start by adding your first device to the network</p>
+            <button on:click={handleAddDevice} class="px-6 py-3 font-mono text-sm bg-blue-600 text-white hover:bg-blue-700 rounded inline-flex items-center transition-colors">
+                <Icon icon="lucide:plus" class="h-4 w-4 mr-2" />
+                Add Your First Device
+            </button>
+        </div>
+    {:else}
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {#each devices as device}
-                <tr class="border-b border-neutral-200">
-                    <td class="p-2 font-mono">{device.device_name}</td>
-                    <td class="p-2 font-mono">{device.mac_addr}</td>
-                    <td class="p-2 font-mono">{device.ip_addr}</td>
-                    <td class="p-2">
-                        <a href={`/devices/${device.device_name}`}>
-                            <button class="h-8 px-3 py-1 font-mono text-xs bg-white text-black hover:bg-neutral-200">
-                                View
-                            </button>
-                        </a>
-                    </td>
-                </tr>
+                <div class="border border-neutral-400 bg-white rounded-lg shadow-sm hover:shadow-md transition-shadow p-6">
+                    <div class="flex gap-4 items-center">
+                        <!-- Device Icon/Image -->
+                        <div class="flex-shrink-0 p-3 bg-blue-50 rounded-lg flex items-center justify-center">
+                            {#if device.type === 'esp32'}
+                                <Icon 
+                                    icon="lucide:cpu" 
+                                    class="h-8 w-8 text-black"
+                                />
+                            {:else}
+                                <Icon 
+                                    icon="lucide:router" 
+                                    class="h-8 w-8 text-black" 
+                                />
+                            {/if}
+                        </div>
+                        
+                        <!-- Device Info -->
+                        <div class="flex-1 space-y-2">
+                            <div>
+                                <h3 class="font-mono text-lg font-bold text-neutral-900">{device.device_name}</h3>
+                                <span class="inline-block px-2 py-1 text-xs font-mono rounded-full
+                                    {device.type === 'esp32' ? 'bg-green-100 text-green-800' : 'bg-blue-100 text-blue-800'}">
+                                    {device.type || 'Unknown'}
+                                </span>
+                            </div>
+                            
+                            <div class="space-y-1">
+                                <div class="flex items-center text-sm">
+                                    <Icon icon="lucide:wifi" class="h-3 w-3 mr-2 text-neutral-500" />
+                                    <span class="font-mono text-neutral-800 font-medium">{device.ip_addr}</span>
+                                </div>
+                                <div class="flex items-center text-sm">
+                                    <Icon icon="lucide:fingerprint" class="h-3 w-3 mr-2 text-neutral-500" />
+                                    <span class="font-mono text-neutral-800 font-medium text-xs">{device.mac_addr}</span>
+                                </div>
+                            </div>
+                            
+                            <div class="pt-2">
+                                <a href={`/devices/${device.device_name}`} class="w-full">
+                                    <button class="w-full px-4 py-2 font-mono text-xs font-semibold bg-neutral-200 text-neutral-800 hover:bg-neutral-300 rounded transition-colors flex items-center justify-center border border-neutral-300">
+                                        <Icon icon="lucide:settings" class="h-3 w-3 mr-2" />
+                                        Configure
+                                    </button>
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+                </div>
             {/each}
-        </tbody>
-    </table>
+        </div>
+    {/if}
 </div>

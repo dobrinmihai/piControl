@@ -70,13 +70,15 @@
             if (esp32Devices.length > 0) {
                 await refreshStatuses();
             }
+            // Hide loading immediately after fetch
+            loading = false;
+            refreshing = false;
         } catch (err: any) {
             console.error('❌ Error fetching ESP devices:', err);
             error = `Failed to load ESP32 devices: ${err.message}`;
             espDevices = [];
         } finally {
-            loading = false;
-            refreshing = false;
+            // Remove or comment out loading = false; and refreshing = false; here to avoid double delay
         }
     }
 
@@ -191,7 +193,7 @@
             <button 
                 on:click={debouncedRefresh}
                 disabled={loading || refreshing}
-                class="px-4 py-2 bg-green-600 text-white rounded font-mono text-xs hover:bg-green-700 disabled:opacity-50 flex items-center"
+                class="px-4 py-2 bg-neutral-800 text-white rounded font-mono text-xs hover:bg-neutral-900 disabled:opacity-50 flex items-center"
             >
                 <Icon icon="lucide:refresh-cw" class="h-3 w-3 mr-2 {(loading || refreshing) ? 'animate-spin' : ''}" />
                 {refreshing ? 'Refreshing...' : loading ? 'Loading...' : 'Refresh Devices'}
@@ -200,9 +202,10 @@
     </div>
     
     {#if loading}
+        <!-- Optionally, you can remove this block entirely or reduce the message -->
         <div class="flex items-center justify-center py-8">
             <Icon icon="lucide:refresh-cw" class="h-6 w-6 mr-2 animate-spin" />
-            <span class="font-mono text-sm">Loading ESP32 devices...</span>
+            <span class="font-mono text-sm">Loading...</span>
         </div>
     {:else if error}
         <div class="bg-red-50 border border-red-200 rounded p-4 mb-4">
@@ -222,30 +225,55 @@
     {:else}
         <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {#each espDevices as device}
-                <div class="border border-neutral-800 bg-white rounded shadow p-4">
-                    <div class="border-b border-neutral-800 pb-2 mb-2">
-                        <span class="font-mono text-sm text-neutral-400">Name:</span>
-                        <span class="font-mono text-sm ml-2">{device.device_name}</span>
-                    </div>
-                    <div class="border-b border-neutral-800 pb-2 mb-2">
-                        <span class="font-mono text-sm text-neutral-400">IP Address:</span>
-                        <span class="font-mono text-sm ml-2">{device.ip_addr}</span>
-                    </div>
-                    <div class="pb-2 mb-2 flex items-center">
-                        <span class="font-mono text-sm text-neutral-400">Status:</span>
-                        <span class="font-mono text-xs px-2 py-1 rounded ml-2
-                            {statuses[device.id] === 'Online' ? 'bg-green-500 text-white' : 'bg-red-500 text-white'}">
-                            {statuses[device.id] || 'Checking...'}
-                        </span>
-                        {#if statuses[device.id] === 'Online'}
-                            <button
-                                class="ml-auto px-3 py-1 bg-gray-700 text-white rounded font-mono text-xs hover:bg-gray-900 flex items-center"
-                                on:click={() => viewSensors(device)}
-                            >
-                                <Icon icon="lucide:settings" class="h-3 w-3 mr-1" />
-                                View Sensors
-                            </button>
-                        {/if}
+                <div class="border border-neutral-400 bg-white rounded-lg shadow-sm hover:shadow-md transition-shadow p-6">
+                    <div class="flex gap-4 items-center">
+                        <!-- ESP32 CPU Icon on the left, centered -->
+                        <div class="flex-shrink-0 p-3 bg-blue-50 rounded-lg flex items-center justify-center">
+                            <Icon 
+                                icon="lucide:cpu" 
+                                class="w-8 h-8 text-black"
+                            />
+                        </div>
+                        
+                        <!-- Device info on the right -->
+                        <div class="flex-1 space-y-2">
+                            <div>
+                                <h3 class="font-mono text-lg font-bold text-neutral-900">{device.device_name}</h3>
+                            </div>
+                            
+                            <div class="space-y-1">
+                                <div class="flex items-center text-sm">
+                                    <Icon icon="lucide:wifi" class="h-3 w-3 mr-2 text-neutral-500" />
+                                    <span class="font-mono text-neutral-800 font-medium">{device.ip_addr}</span>
+                                </div>
+                                <div class="flex items-center text-sm">
+                                    <span class="font-mono text-xs px-2 py-1 rounded ml-2
+                                        {statuses[device.id] === 'Online' ? 'bg-green-500 text-white' : 'bg-red-500 text-white'}">
+                                        {statuses[device.id] || 'Checking...'}
+                                    </span>
+                                </div>
+                            </div>
+                            
+                            <div class="pt-2">
+                                {#if statuses[device.id] === 'Online'}
+                                    <button
+                                        class="w-full px-4 py-2 font-mono text-xs font-semibold bg-neutral-200 text-neutral-800 hover:bg-neutral-300 rounded transition-colors flex items-center justify-center border border-neutral-300"
+                                        on:click={() => viewSensors(device)}
+                                    >
+                                        <Icon icon="lucide:settings" class="h-3 w-3 mr-2" />
+                                        View Sensors
+                                    </button>
+                                {:else}
+                                    <button
+                                        class="w-full px-4 py-2 font-mono text-xs font-semibold bg-neutral-100 text-neutral-500 rounded cursor-not-allowed flex items-center justify-center border border-neutral-200"
+                                        disabled
+                                    >
+                                        <Icon icon="lucide:wifi-off" class="h-3 w-3 mr-2" />
+                                        Offline
+                                    </button>
+                                {/if}
+                            </div>
+                        </div>
                     </div>
                 </div>
             {/each}
