@@ -4,8 +4,8 @@
     import { pb } from "$lib/pocketbase.js";
     import { onMount } from "svelte";
     import { browser } from "$app/environment";
-    import io from "socket.io-client";
     import Icon from "@iconify/svelte";
+    import SshModal from '$lib/components/SshModal.svelte';
 
     // Import Xterm CSS
     import "xterm/css/xterm.css";
@@ -20,6 +20,9 @@
     let sshUsername = $state("root");
     let loading = $state(false);
     let passwordInput = $state("");
+    let sshHost = $state(device.ip_addr);
+    let sshError = $state("");
+    let sshLoading = $state(false);
     const deviceTypes = [
         { id: "raspberrypi", name: "Raspberry Pi" },
         { id: "esp32", name: "ESP 32" }
@@ -73,33 +76,47 @@
         showEditDeviceModal = false;
     }
 
-    function updateDevice() {
+    async function updateDevice() {
         if (!device.id) {
             console.error("Device ID is missing. Cannot update device.", device);
             alert("Error: Device ID is missing. Cannot update device. Please contact support or check device data integrity.");
             return;
         }
-        pb.collection("devices")
-            .update(device.id, editFormData)
-            .then((record) => {
-                console.log("Device updated:", record);
-                // Update the main device object only after successful update
-                device = {
-                    id: record.id,
-                    device_name: record.device_name,
-                    mac_addr: record.mac_addr,
-                    ip_addr: record.ip_addr,
-                    type: record.type,
-                };
-                closeEditDeviceModal();
-            })
-            .catch((error) => {
-                console.error("Error updating device:", error, device, editFormData);
-                alert("Failed to update device: " + (error?.message || error));
+        
+        try {
+            const response = await fetch(`/api/devices/${device.device_name}`, {
+                method: 'PUT',
+                headers:
+                {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(editFormData)
             });
+
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.error || `HTTP ${response.status}`);
+            }
+
+            const record = await response.json();
+            console.log("Device updated:", record);
+            
+            // Update the main device object only after successful update
+            device = {
+                id: record.device.id,
+                device_name: record.device.device_name,
+                mac_addr: record.device.mac_addr,
+                ip_addr: record.device.ip_addr,
+                type: record.device.type,
+            };
+            closeEditDeviceModal();
+        } catch (error) {
+            console.error("Error updating device:", error, device, editFormData);
+            alert("Failed to update device: " + (error instanceof Error ? error.message : String(error)));
+        }
     }
 
-    function deleteDevice() {
+    async function deleteDevice() {
         if (!device.id) {
             console.error("Device ID is missing. Cannot delete device.", device);
             alert("Error: Device ID is missing. Cannot delete device. Please contact support or check device data integrity.");
@@ -107,51 +124,51 @@
             closeDeleteConfirmModal();
             return;
         }
-        isDeleting = true;
-        pb.collection("devices")
-            .delete(device.id)
-            .then(() => {
-                console.log("Device deleted");
-                window.location.href = "/devices";
-                isDeleting = false;
-            })
-            .catch((error) => {
-                console.error("Error deleting device:", error, device);
-                alert("Failed to delete device: " + (error?.message || error));
-                isDeleting = false;
-                closeDeleteConfirmModal();
-            });
         
+        isDeleting = true;
+        try {
+            const response = await fetch(`/api/devices/${device.device_name}`, {
+                method: 'DELETE'
+            });
+
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.error || `HTTP ${response.status}`);
+            }
+
+            console.log("Device deleted");
+            window.location.href = "/devices";
+        } catch (error) {
+            console.error("Error deleting device:", error, device);
+            alert("Failed to delete device: " + (error instanceof Error ? error.message : String(error)));
+            isDeleting = false;
+            closeDeleteConfirmModal();
+        }
     }
 
     function openCredentialsModal() {
         showCredentialsModal = true;
+        sshError = "";
     }
 
     function cancelPasswordPrompt() {
         showCredentialsModal = false;
-        passwordInput = ""; // Clear password on cancel
+        passwordInput = "";
+        sshError = "";
     }
 
-    function connectWithPassword() {
-        // Close credentials modal
+    async function connectWithPassword({ username, host, password }: { username: string, host: string, password: string }) {
         showCredentialsModal = false;
-
-        // Open terminal modal
         showTerminalModal = true;
-
-        // Initialize terminal
+        sshLoading = true;
+        sshUsername = username;
+        sshHost = host;
         if (browser) {
-            // Capture password temporarily
-            const tempPassword = passwordInput;
-
-            // Clear the password from memory immediately
-            passwordInput = "";
-
             setTimeout(() => {
-                initTerminal(tempPassword);
-            }, 100); // Small delay to ensure DOM is ready
+                initTerminal(password);
+            }, 100);
         }
+        sshLoading = false;
     }
 
     async function initTerminal(password: string) {
@@ -167,33 +184,44 @@
             console.error("Terminal element not found");
         }
 
-        // Connect to Socket.IO server
-        socket = io("http://localhost:3000");
-
-        socket.on("connect", () => {
-            console.log("Connected to server");
-            socket.emit("start_ssh", {
-                hostname: device.ip_addr,
+        // Native WebSocket connection to Go backend
+        socket = new WebSocket(`wss://localhost:3000/ws`);
+        socket.onopen = () => {
+            const msg = {
+                type: "start_ssh",
+                hostname: sshHost,
                 username: sshUsername,
                 password: password,
-            });
-
-            // Clear the temporary password from function scope
-            password = "";
-        });
-
-        socket.on("ssh_data", (data: any) => {
-            term.write(data);
-        });
-
+            };
+            socket.send(JSON.stringify(msg));
+        };
+        socket.onmessage = (event: any) => {
+            try {
+                const data = JSON.parse(event.data);
+                if (data.type === "ssh_data") {
+                    term.write(data.data);
+                } else if (data.type === "ssh_error") {
+                    term.write(`\r\n\x1b[31m${data.data}\x1b[0m\r\n`);
+                }
+            } catch (e) {
+                term.write(event.data);
+            }
+        };
+        socket.onclose = () => {
+            term.write("\r\n\x1b[31mDisconnected from server\x1b[0m\r\n");
+        };
         term.onData((data: any) => {
-            socket.emit("input", data);
+            const msg = {
+                type: "input",
+                data
+            };
+            socket.send(JSON.stringify(msg));
         });
     }
 
     function closeTerminal() {
         if (socket) {
-            socket.disconnect();
+            socket.close();
         }
         if (term) {
             term.dispose();
@@ -342,38 +370,37 @@
                         {/if}
                         {#if device.type === "raspberrypi"}
                             {#await getHelperStatus() then status}
-
-    <!-- Helper Status -->              
-    <div class="border-b border-neutral-800 py-3">
-        <div class="flex justify-between items-center">
-            <span class="font-mono text-sm text-neutral-400">Helper Status:</span>
-            <div class="flex items-center gap-2">
-                {#if status}
-                    <span class="inline-block w-2 h-2 rounded-full 
-                        {status.status === 'running' ? 'bg-green-500' : 'bg-red-500'}"></span>
-                    <span class="font-mono text-sm">{status.status || "Unknown"}</span>
-                    {#if status.distribution}
-                        <span class="font-mono text-xs text-neutral-400">({status.distribution})</span>
-                    {/if}
-                    
-                    {#if status.status === 'running'}
-                        <a 
-                            href="/devices/{device.device_name}/config" 
-                            class="ml-3 h-7 px-3 py-1 font-mono text-xs bg-green-600 text-white hover:bg-green-700 inline-flex items-center justify-center rounded"
-                        >
-                            <Icon icon="lucide:settings" class="h-3 w-3 mr-1" />
-                            Configure
-                        </a>
-                    {/if}
-                {:else}
-                    <span class="inline-block w-2 h-2 rounded-full bg-gray-500"></span>
-                    <span class="font-mono text-sm">Not available</span>
-                {/if}
-            </div>
-        </div>
-    </div>
-{/await}
-{/if}
+                                <!-- Helper Status -->              
+                                <div class="border-b border-neutral-800 py-3">
+                                    <div class="flex justify-between items-center">
+                                        <span class="font-mono text-sm text-neutral-400">Helper Status:</span>
+                                        <div class="flex items-center gap-2">
+                                            {#if status}
+                                                <span class="inline-block w-2 h-2 rounded-full 
+                                                    {status.status === 'running' ? 'bg-green-500' : 'bg-red-500'}"></span>
+                                                <span class="font-mono text-sm">{status.status || "Unknown"}</span>
+                                                {#if status.distribution}
+                                                    <span class="font-mono text-xs text-neutral-400">({status.distribution})</span>
+                                                {/if}
+                                                
+                                                {#if status.status === 'running'}
+                                                    <a 
+                                                        href="/devices/{device.device_name}/config" 
+                                                        class="ml-3 h-7 px-3 py-1 font-mono text-xs bg-green-600 text-white hover:bg-green-700 inline-flex items-center justify-center rounded"
+                                                    >
+                                                        <Icon icon="lucide:settings" class="h-3 w-3 mr-1" />
+                                                        Configure
+                                                    </a>
+                                                {/if}
+                                            {:else}
+                                                <span class="inline-block w-2 h-2 rounded-full bg-gray-500"></span>
+                                                <span class="font-mono text-sm">Not available</span>
+                                            {/if}
+                                        </div>
+                                    </div>
+                                </div>
+                            {/await}
+                        {/if}
                     </div>
                 </div>
             </div>
@@ -533,59 +560,16 @@
 {/if}
 
 <!-- SSH Credentials Modal -->
-{#if showCredentialsModal}
-    <div class="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-50">
-        <div class="bg-neutral-900 border border-neutral-800 p-4 rounded shadow-lg w-80">
-            <h3 class="text-white font-mono text-sm mb-4">SSH Authentication</h3>
-            
-            <div class="mb-4">
-                <label for="sshUsername" class="block text-neutral-400 text-xs font-mono mb-1">Username</label>
-                <input 
-                    type="text" 
-                    id="sshUsername" 
-                    bind:value={sshUsername} 
-                    class="w-full bg-black border border-neutral-800 text-white px-2 py-1 text-sm font-mono focus:outline-none focus:border-neutral-600"
-                />
-            </div>  
-
-            <div class="mb-4">
-                <label for="sshHost" class="block text-neutral-400 text-xs font-mono mb-1">Host IP Address</label>
-                <input 
-                    type="text" 
-                    id="sshHost" 
-                    bind:value={device.ip_addr} 
-                    class="w-full bg-black border border-neutral-800 text-white px-2 py-1 text-sm font-mono focus:outline-none focus:border-neutral-600"
-                />
-            </div>
-
-            <div class="mb-4">
-                <label for="sshPassword" class="block text-neutral-400 text-xs font-mono mb-1">Password for {sshUsername}@{device.ip_addr}</label>
-                <input 
-                    type="password" 
-                    id="sshPassword" 
-                    bind:value={passwordInput} 
-                    class="w-full bg-black border border-neutral-800 text-white px-2 py-1 text-sm font-mono focus:outline-none focus:border-neutral-600"
-                    autocomplete="current-password"
-                />
-            </div>
-            
-            <div class="flex justify-end space-x-2">
-                <button 
-                    class="px-3 py-1 text-xs font-mono text-neutral-300 hover:text-white"
-                    onclick={cancelPasswordPrompt}
-                >
-                    Cancel
-                </button>
-                <button 
-                    class="px-3 py-1 text-xs font-mono bg-neutral-800 text-white hover:bg-neutral-700"
-                    onclick={connectWithPassword}
-                >
-                    Connect
-                </button>
-            </div>
-        </div>
-    </div>
-{/if}
+<SshModal
+  show={showCredentialsModal}
+  username={sshUsername}
+  host={sshHost}
+  password={passwordInput}
+  loading={sshLoading}
+  error={sshError}
+  onCancel={cancelPasswordPrompt}
+  onConnect={connectWithPassword}
+/>
 
 <!-- Terminal Modal -->
 {#if showTerminalModal}

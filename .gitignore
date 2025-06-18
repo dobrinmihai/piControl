@@ -76,3 +76,20 @@ temp/
 *.tmp
 *.temp
 .cache/
+
+# SSL/TLS Certificates and Keys
+*.pem
+*.key
+*.crt
+*.csr
+*.p12
+*.pfx
+cert/
+certs/
+ssl/
+
+# Go compiled binaries
+picontrol-linux
+picontrol-linux-arm
+*.exe
+*.bin

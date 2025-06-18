@@ -7,7 +7,6 @@
     import { goto } from '$app/navigation';
     import "../app.css"
     import Header from '$lib/components/Header.svelte';
-    import Footer from '$lib/components/Footer.svelte';
     
     let { data, children }: { data: LayoutData, children: Snippet } = $props();
     
@@ -43,4 +42,3 @@
 
 <Header/>
 {@render children()}
-<Footer/>

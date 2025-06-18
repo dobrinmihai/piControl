@@ -45,10 +45,6 @@
     }
 </script>
 
-<svelte:head>
-    <title>Login - piControl</title>
-</svelte:head>
-
 <div class="min-h-screen bg-neutral-900 flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8">
     <div class="max-w-md w-full space-y-8">
         <div>
@@ -59,7 +55,6 @@
                 IoT Device Management Platform
             </p>
         </div>
-        
         <form class="mt-8 space-y-6" onsubmit={handleSubmit}>
             <input type="hidden" name="remember" value="true" />
             <div class="rounded-md shadow-sm space-y-4">

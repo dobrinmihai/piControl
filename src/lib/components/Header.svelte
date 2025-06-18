@@ -15,6 +15,7 @@
   }
 </script>
 
+{#if $page.url.pathname !== '/login'}
 <header class="border-b border-zinc-800 bg-neutral-900 text-white">
   <div class="container mx-auto px-4 py-3">
     <nav class="flex items-center justify-between">
@@ -55,3 +56,4 @@
     </nav>
   </div>
 </header>
+{/if}

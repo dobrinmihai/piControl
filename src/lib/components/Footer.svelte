@@ -50,36 +50,53 @@
                 return;
             }
 
-            // Connect to Socket.IO server
-            const { io } = await import("socket.io-client");
-            socket = io("http://localhost:3000");
+            // Connect to Go WebSocket server
+            const wsProtocol = window.location.protocol === 'https:' ? 'wss' : 'ws';
+            const wsHost = window.location.hostname;
+            socket = new WebSocket(`${wsProtocol}://${wsHost}:3000/ws`);
 
-            socket.on("connect", () => {
-                console.log("Connected to server");
-                socket.emit("start_ssh", {
-                    hostname: sshHost, // Use variable instead of hardcoded value
+            socket.onopen = () => {
+                console.log("Connected to Go WebSocket server");
+                const msg = {
+                    type: "start_ssh",
+                    hostname: sshHost,
                     username: sshUsername,
                     password: passwordInput,
-                });
+                };
+                socket.send(JSON.stringify(msg));
 
                 // Clear the temporary password from memory
                 passwordInput = "";
                 isPasswordPromptVisible = false;
                 isConnected = true;
-            });
+            };
 
-            socket.on("ssh_data", (data:any) => {
-                term.write(data);
-            });
+            socket.onmessage = (event:any) => {
+                try {
+                    const data = JSON.parse(event.data);
+                    if (data.type === "ssh_data") {
+                        term.write(data.data);
+                    } else if (data.type === "ssh_error") {
+                        term.write(`\r\n\x1b[31m${data.data}\x1b[0m\r\n`);
+                    }
+                } catch (e) {
+                    // Fallback: write raw data
+                    term.write(event.data);
+                }
+            };
 
-            socket.on("disconnect", () => {
+            socket.onclose = () => {
                 isConnected = false;
                 term.write("\r\n\x1b[31mDisconnected from server\x1b[0m\r\n");
-            });
+            };
 
             term.onData((data:any) => {
                 if (isConnected) {
-                    socket.emit("input", data);
+                    const msg = {
+                        type: "input",
+                        data
+                    };
+                    socket.send(JSON.stringify(msg));
                 }
             });
             
