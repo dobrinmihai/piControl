@@ -19,49 +19,49 @@
 
 {#if show}
 <div class="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-50">
-  <div class="bg-neutral-900 border border-neutral-800 p-4 rounded shadow-lg w-80">
-    <h3 class="text-white font-mono text-sm mb-4">SSH Authentication</h3>
-    <div class="mb-4">
-      <label for="sshUsername" class="block text-neutral-400 text-xs font-mono mb-1">Username</label>
+  <div class="bg-white border border-neutral-800 p-6 rounded-lg shadow-lg w-96">
+    <h3 class="text-black font-mono text-lg font-bold mb-6">SSH Authentication</h3>
+    <div class="mb-5">
+      <label for="sshUsername" class="block text-neutral-700 text-xs font-mono mb-1">Username</label>
       <input 
         type="text" 
         id="sshUsername" 
         bind:value={username} 
-        class="w-full bg-black border border-neutral-800 text-white px-2 py-1 text-sm font-mono focus:outline-none focus:border-neutral-600"
+        class="w-full bg-white border border-neutral-800 text-black px-3 py-2 text-base font-mono rounded focus:outline-none focus:border-neutral-600"
       />
     </div>  
-    <div class="mb-4">
-      <label for="sshHost" class="block text-neutral-400 text-xs font-mono mb-1">Host IP Address</label>
+    <div class="mb-5">
+      <label for="sshHost" class="block text-neutral-700 text-xs font-mono mb-1">Host IP Address</label>
       <input 
         type="text" 
         id="sshHost" 
         bind:value={host} 
-        class="w-full bg-black border border-neutral-800 text-white px-2 py-1 text-sm font-mono focus:outline-none focus:border-neutral-600"
+        class="w-full bg-white border border-neutral-800 text-black px-3 py-2 text-base font-mono rounded focus:outline-none focus:border-neutral-600"
       />
     </div>
-    <div class="mb-4">
-      <label for="sshPassword" class="block text-neutral-400 text-xs font-mono mb-1">Password for {username}@{host}</label>
+    <div class="mb-5">
+      <label for="sshPassword" class="block text-neutral-700 text-xs font-mono mb-1">Password for {username}@{host}</label>
       <input 
         type="password" 
         id="sshPassword" 
         bind:value={password} 
-        class="w-full bg-black border border-neutral-800 text-white px-2 py-1 text-sm font-mono focus:outline-none focus:border-neutral-600"
+        class="w-full bg-white border border-neutral-800 text-black px-3 py-2 text-base font-mono rounded focus:outline-none focus:border-neutral-600"
         autocomplete="current-password"
       />
     </div>
     {#if error}
-      <div class="mb-2 text-xs text-red-400 font-mono">{error}</div>
+      <div class="mb-3 text-xs text-red-500 font-mono">{error}</div>
     {/if}
-    <div class="flex justify-end space-x-2">
+    <div class="flex justify-end space-x-3 mt-6">
       <button 
-        class="px-3 py-1 text-xs font-mono text-neutral-300 hover:text-white"
+        class="px-4 py-2 text-xs font-mono border border-neutral-800 bg-transparent text-black hover:bg-neutral-200 rounded"
         on:click={handleCancel}
         disabled={loading}
       >
         Cancel
       </button>
       <button 
-        class="px-3 py-1 text-xs font-mono bg-neutral-800 text-white hover:bg-neutral-700"
+        class="px-4 py-2 text-xs font-mono bg-black text-white hover:bg-neutral-800 rounded border border-neutral-800"
         on:click={handleConnect}
         disabled={loading}
       >

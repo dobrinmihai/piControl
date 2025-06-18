@@ -148,7 +148,7 @@
             <form method="POST" action="?/rescan" use:enhance={handleRescanEnhance}>
                 <button 
                     type="submit" 
-                    class={`h-9 px-4 py-2 font-mono text-xs border border-neutral-800 bg-transparent hover:bg-neutral-200 inline-flex items-center ${scanning ? 'opacity-50' : ''}`}
+                    class={`h-9 px-4 py-2 font-mono text-xs border border-neutral-800 bg-white text-black hover:bg-neutral-200 inline-flex items-center ${scanning ? 'opacity-50' : ''}`}
                     disabled={scanning}
                 >
                     <Icon icon="lucide:refresh-cw" class={`h-3 w-3 mr-2 ${scanning ? 'animate-spin' : ''}`} />
@@ -156,7 +156,7 @@
                 </button>
             </form>
             <a href="/devices">
-                <button class="h-9 px-4 py-2 font-mono text-xs border border-neutral-800 bg-transparent hover:bg-neutral-200 inline-flex items-center">
+                <button class="h-9 px-4 py-2 font-mono text-xs border border-neutral-800 bg-white text-black hover:bg-neutral-200 inline-flex items-center">
                     <Icon icon="lucide:arrow-left" class="h-3 w-3 mr-2" />
                     Back to Devices
                 </button>
@@ -165,17 +165,16 @@
     </div>
 
     {#if error}
-        <div class="border border-red-800 bg-red-900/20 p-4 mb-6">
-            <p class="text-red-400 text-sm">{error}</p>
+        <div class="border border-red-800 bg-red-100 p-4 mb-6">
+            <p class="text-red-600 text-sm">{error}</p>
         </div>
     {/if}
 
-    <div class="border border-neutral-800 bg-zinc-50 mb-8">
+    <div class="border border-neutral-800 bg-white mb-8 rounded-lg shadow">
         <div class="px-4 pt-4 pb-2">
             <h2 class="font-mono text-xl font-bold">Available Devices on Network</h2>
-            <p class="text-neutral-400 text-sm mt-1">These are the devices detected on your network</p>
+            <p class="text-neutral-600 text-sm mt-1">These are the devices detected on your network</p>
         </div>
-        
         <div class="p-4 pt-0">
             {#if data.networkDevices && data.networkDevices.length > 0}
                 <table class="w-full">
@@ -192,29 +191,29 @@
                             {@const isSelected = selectedDevices[device.mac_address]}
                             <tr 
                                 class={`border-b border-neutral-800 ${
-                                    isExisting ? 'opacity-50' : isSelected ? 'bg-neutral-800' : ''
+                                    isExisting ? 'opacity-50' : isSelected ? 'bg-neutral-200' : ''
                                 }`}
                             >
-                                <td class="p-3 font-mono text-sm">{device.mac_address}</td>
-                                <td class="p-3 font-mono text-sm">{device.ip_address}</td>
+                                <td class="p-3 font-mono text-sm text-black">{device.mac_address}</td>
+                                <td class="p-3 font-mono text-sm text-black">{device.ip_address}</td>
                                 <td class="p-3">
                                     {#if isExisting}
                                         <button 
-                                            class="h-8 px-3 py-1 font-mono text-xs border border-neutral-800 bg-transparent opacity-50 cursor-not-allowed"
+                                            class="h-8 px-3 py-1 font-mono text-xs border border-neutral-800 bg-white text-black opacity-50 cursor-not-allowed"
                                             disabled
                                         >
                                             Already Added
                                         </button>
                                     {:else if isSelected}
                                         <button 
-                                            class="h-8 px-3 py-1 font-mono text-xs border border-neutral-800 bg-transparent opacity-50 cursor-not-allowed"
+                                            class="h-8 px-3 py-1 font-mono text-xs border border-neutral-800 bg-white text-black opacity-50 cursor-not-allowed"
                                             disabled
                                         >
                                             Selected
                                         </button>
                                     {:else}
                                         <button 
-                                            class="h-8 px-3 py-1 font-mono text-xs bg-white text-black hover:bg-neutral-200"
+                                            class="h-8 px-3 py-1 font-mono text-xs bg-black text-white hover:bg-neutral-800 border border-neutral-800 rounded"
                                             onclick={() => openAddModal(device)}
                                         >
                                             Add
@@ -226,7 +225,7 @@
                     </tbody>
                 </table>
             {:else}
-                <p class="text-neutral-400 py-4">No devices found on network</p>
+                <p class="text-neutral-600 py-4">No devices found on network</p>
             {/if}
         </div>
     </div>
@@ -234,54 +233,50 @@
 
 {#if showModal && currentDevice}
 <div class="fixed inset-0 bg-black/80 flex items-center justify-center z-50">
-    <div class="border border-neutral-800 bg-white w-full max-w-md">
+    <div class="border border-neutral-800 bg-white w-full max-w-md rounded-lg shadow-lg">
         <div class="px-4 pt-4 pb-2 border-b border-neutral-800">
             <h3 class="font-mono text-lg font-bold">Add New Device</h3>
         </div>
-        
         <div class="p-4">
             <div class="space-y-4">
                 <div>
-                    <label for="mac" class="block font-mono text-xs mb-1">MAC Address:</label>
+                    <label for="mac" class="block font-mono text-xs mb-1 text-neutral-700">MAC Address:</label>
                     <input 
                         type="text" 
                         id="mac" 
                         value={currentDevice.mac_address} 
                         readonly 
-                        class="w-full bg-white border border-neutral-800 p-2 font-mono text-sm"
+                        class="w-full bg-white border border-neutral-800 p-2 font-mono text-sm text-black rounded"
                     />
                 </div>
-                
                 <div>
-                    <label for="ip" class="block font-mono text-xs mb-1">IP Address:</label>
+                    <label for="ip" class="block font-mono text-xs mb-1 text-neutral-700">IP Address:</label>
                     <input 
                         type="text" 
                         id="ip" 
                         value={currentDevice.ip_address} 
                         readonly 
-                        class="w-full bg-white border border-neutral-800 p-2 font-mono text-sm"
+                        class="w-full bg-white border border-neutral-800 p-2 font-mono text-sm text-black rounded"
                     />
                 </div>
-                
                 <div>
-                    <label for="deviceName" class="block font-mono text-xs mb-1">Device Name:</label>
+                    <label for="deviceName" class="block font-mono text-xs mb-1 text-neutral-700">Device Name:</label>
                     <input 
                         type="text" 
                         id="deviceName" 
                         bind:value={deviceName}
                         required 
                         placeholder="Enter device name" 
-                        class="w-full bg-white border border-neutral-800 p-2 font-mono text-sm"
+                        class="w-full bg-white border border-neutral-800 p-2 font-mono text-sm text-black rounded"
                     />
                 </div>
-                
                 <div>
-                    <label for="deviceType" class="block font-mono text-xs mb-1">Device Type:</label>
+                    <label for="deviceType" class="block font-mono text-xs mb-1 text-neutral-700">Device Type:</label>
                     <div class="relative">
                         <select 
                             id="deviceType" 
                             bind:value={deviceType}
-                            class="w-full appearance-none bg-white-900 border border-neutral-800 p-2 pr-8 font-mono text-sm rounded-none focus:outline-none focus:ring-1 focus:ring-white"
+                            class="w-full appearance-none bg-white border border-neutral-800 p-2 pr-8 font-mono text-sm rounded focus:outline-none focus:ring-1 focus:ring-black text-black"
                         >
                             {#each deviceTypes as type}
                                 <option value={type.id}>{type.name}</option>
@@ -294,16 +289,15 @@
                 </div>
             </div>
         </div>
-        
         <div class="p-4 border-t border-neutral-800 flex justify-end space-x-3">
             <button 
-                class="h-9 px-4 py-2 font-mono text-xs border border-zinc bg-transparent hover:bg-red-100 hover:border-red-500 text-black hover:text-red-500"
+                class="h-9 px-4 py-2 font-mono text-xs border border-neutral-800 bg-transparent hover:bg-red-100 hover:border-red-500 text-black hover:text-red-500 rounded"
                 onclick={closeModal}
             >
                 Cancel
             </button>
             <button 
-                class="h-9 px-4 py-2 font-mono text-xs bg-white text-black hover:bg-green-200 hover:border-green-500 hover:text-green-500 border border-zinc" 
+                class="h-9 px-4 py-2 font-mono text-xs bg-black text-white hover:bg-neutral-800 border border-neutral-800 rounded" 
                 onclick={addDeviceToPocketBase}
             >
                 Add Device

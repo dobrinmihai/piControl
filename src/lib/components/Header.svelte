@@ -7,7 +7,7 @@
   const navItems = [
     { name: "Overview", path: "/", icon: "tabler:layout-dashboard" },
     { name: "Devices", path: "/devices", icon: "tabler:server-2" },
-    { name: "Settings", path: "/settings", icon: "tabler:settings" },
+    { name: "About", path: "/settings", icon: "tabler:settings" },
   ];
   
   async function handleLogout() {
@@ -41,7 +41,7 @@
         {#if $user}
           <div class="flex items-center space-x-3 ml-4 pl-4 border-l border-neutral-600">
             <span class="text-sm text-neutral-300">
-              {$user.email}
+              Admin
             </span>
             <button
               on:click={handleLogout}
