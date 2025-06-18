@@ -148,9 +148,10 @@
                         <div class="flex-1 space-y-2">
                             <div>
                                 <h3 class="font-mono text-lg font-bold text-neutral-900">{device.device_name}</h3>
-                                <span class="inline-block px-2 py-1 text-xs font-mono rounded-full
-                                    {device.type === 'esp32' ? 'bg-green-100 text-green-800' : 'bg-blue-100 text-blue-800'}">
-                                    {device.type || 'Unknown'}
+                                <span class="inline-block px-2 py-1 text-xs font-mono rounded-full border mr-2
+                                  {device.type === 'raspberrypi' ? 'bg-red-100 text-red-700 border-red-400' : ''}
+                                  {device.type === 'esp32' ? 'bg-blue-100 text-blue-700 border-blue-400' : ''}">
+                                  {device.type === 'raspberrypi' ? 'Raspberry Pi' : device.type === 'esp32' ? 'ESP32' : device.type}
                                 </span>
                             </div>
                             

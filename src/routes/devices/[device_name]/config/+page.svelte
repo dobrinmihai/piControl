@@ -1,10 +1,10 @@
 <script lang="ts">
     import { pb } from "$lib/pocketbase.js";
     import Icon from "@iconify/svelte";
-    import { onMount } from "svelte";
+    import { onMount, onDestroy } from "svelte";
     
     let { data }: { data: { device: any, device_name: string } } = $props();
-    let device = $state(data.device);
+    let device = $state(data.device || {});
     
     // Tab state
     let activeTab = $state('packages');
@@ -36,15 +36,164 @@
         full_status: string
     } | null>(null);
     
+    // --- Helper Proxy Fetch ---
+    async function helperProxyFetch(endpoint: string, options: any = {}) {
+        const ip = device.ip_addr;
+        const url = `/api/helper-proxy?ip=${encodeURIComponent(ip)}&endpoint=${encodeURIComponent(endpoint)}`;
+        // Always forward the headers from options to the proxy
+        return fetch(url, options);
+    }
+
+    // --- TOTP Session Management ---
+    let showTotpModal = $state(false);
+    let totpCode = $state("");
+    let totpError = $state("");
+    let sessionId = $state("");
+    let sessionCheckInterval: any = null;
+
+    // Handle Enter key for TOTP input
+    function onTotpKeydown(e: KeyboardEvent) {
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            submitTotp();
+        }
+    }
+
+    function getSessionCookieKey() {
+        return `helper_session_${device.device_name || device.name || ''}`;
+    }
+
+    function setSessionCookie(sessionId: string) {
+        const key = getSessionCookieKey();
+        document.cookie = `${key}=${sessionId}; Path=/; Max-Age=1500; SameSite=Lax`;
+    }
+
+    function getSessionCookie() {
+        const key = getSessionCookieKey();
+        const match = document.cookie.match(new RegExp('(^| )' + key + '=([^;]+)'));
+        return match ? match[2] : null;
+    }
+
+    function clearSessionCookie() {
+        const key = getSessionCookieKey();
+        document.cookie = `${key}=; Path=/; Expires=Thu, 01 Jan 1970 00:00:01 GMT; SameSite=Lax`;
+    }
+
+    async function checkSessionStatus() {
+        if (!sessionId) return false;
+        try {
+            const response = await helperProxyFetch('auth/session', {
+                headers: { 'Authorization': `Bearer ${sessionId}` }
+            });
+            if (!response.ok) throw new Error('Session invalid');
+            const data = await response.json();
+            return data.valid;
+        } catch {
+            return false;
+        }
+    }
+
+    async function promptForTotp() {
+        showTotpModal = true;
+        totpCode = "";
+        totpError = "";
+    }
+
+    async function submitTotp() {
+        totpError = "";
+        try {
+            const response = await helperProxyFetch('', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ totp_code: totpCode })
+            });
+            const data = await response.json();
+            if (!response.ok || !data.success) {
+                totpError = data.message || 'Invalid TOTP code';
+                return;
+            }
+            sessionId = data.session_id;
+            setSessionCookie(sessionId);
+            showTotpModal = false;
+            startSessionPolling();
+        } catch (e) {
+            totpError = 'Failed to authenticate';
+        }
+    }
+
+    function cancelTotp() {
+        showTotpModal = false;
+        clearSessionCookie();
+        window.location.href = `/devices/${device.device_name}`;
+    }
+
+    function startSessionPolling() {
+        if (sessionCheckInterval) clearInterval(sessionCheckInterval);
+        sessionCheckInterval = setInterval(async () => {
+            const valid = await checkSessionStatus();
+            if (!valid) {
+                clearSessionCookie();
+                sessionId = "";
+                promptForTotp();
+            }
+        }, 30000);
+    }
+
+    onMount(async () => {
+        sessionId = getSessionCookie() || '';
+        let valid = false;
+        if (sessionId) {
+            valid = await checkSessionStatus();
+        }
+        if (valid) {
+            startSessionPolling();
+            // Load initial data
+            if (activeTab === 'packages') {
+                loadInstalledPackages();
+            } else {
+                loadServices();
+            }
+        } else {
+            // If no valid session, redirect back to device page for authentication
+            window.location.href = `/devices/${device.device_name}`;
+        }
+    });
+
+    onDestroy(() => {
+        if (sessionCheckInterval) clearInterval(sessionCheckInterval);
+        // Invalidate session on the helper when leaving config page
+        if (sessionId) {
+            helperProxyFetch('auth/logout', {
+                method: 'POST',
+                headers: { 'Authorization': `Bearer ${sessionId}` }
+            });
+            clearSessionCookie();
+        }
+    });
+
+    // --- Wrap all helper API calls to include sessionId ---
+    async function helperFetch(endpoint: string, options: any = {}) {
+        if (!sessionId) throw new Error('No session');
+        options.headers = options.headers || {};
+        options.headers['Authorization'] = `Bearer ${sessionId}`;
+        // endpoint should not start with '/'
+        return helperProxyFetch(endpoint.replace(/^\//, ''), options);
+    }
+    
     async function loadInstalledPackages() {
         isLoadingPackages = true;
         try {
-            const response = await fetch(`/api/helper-proxy?ip=${device.ip_addr}&endpoint=list_installed`);
+            const response = await helperFetch('list_installed');
+            if (response.status === 401) {
+                promptForTotp();
+                throw new Error('No session');
+            }
             if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
             const data = await response.json();
             installedPackages = data.packages || [];
         } catch (error) {
             console.error("Error loading installed packages:", error);
+            if ((error as Error).message === 'No session') return; // Don't show error if just prompting for TOTP
         } finally {
             isLoadingPackages = false;
         }
@@ -54,12 +203,13 @@
         if (!packageQuery.trim()) return;
         isLoadingSearch = true;
         try {
-            const response = await fetch(`/api/helper-proxy?ip=${device.ip_addr}&endpoint=search&query=${packageQuery}`);
+            const response = await helperFetch(`search?query=${encodeURIComponent(packageQuery)}`);
             if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
             const data = await response.json();
             searchResults = data.results || [];
         } catch (error) {
             console.error("Error searching packages:", error);
+            if ((error as Error).message === 'No session') promptForTotp();
         } finally {
             isLoadingSearch = false;
         }
@@ -79,22 +229,17 @@
         if (packageInstallList.length === 0) return;
         isLoadingPackages = true;
         try {
-            const response = await fetch(`/api/helper-proxy?ip=${device.ip_addr}&endpoint=install`, {
+            const response = await helperFetch('install', {
                 method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({
-                    packages: packageInstallList
-                })
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ packages: packageInstallList })
             });
             if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
-            
-            // Clear install list and refresh installed packages
             packageInstallList = [];
             await loadInstalledPackages();
         } catch (error) {
             console.error("Error installing packages:", error);
+            if ((error as Error).message === 'No session') promptForTotp();
         } finally {
             isLoadingPackages = false;
         }
@@ -103,19 +248,16 @@
     async function uninstallPackage(pkg: string) {
         isLoadingPackages = true;
         try {
-            const response = await fetch(`/api/helper-proxy?ip=${device.ip_addr}&endpoint=uninstall`, {
+            const response = await helperFetch('uninstall', {
                 method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({
-                    packages: [pkg]
-                })
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ packages: [pkg] })
             });
             if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
             await loadInstalledPackages();
         } catch (error) {
             console.error("Error uninstalling package:", error);
+            if ((error as Error).message === 'No session') promptForTotp();
         } finally {
             isLoadingPackages = false;
         }
@@ -124,12 +266,13 @@
     async function loadServices() {
         isLoadingServices = true;
         try {
-            const response = await fetch(`/api/helper-proxy?ip=${device.ip_addr}&endpoint=services`);
+            const response = await helperFetch('services');
             if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
             const data = await response.json();
             services = data.services || [];
         } catch (error) {
             console.error("Error loading services:", error);
+            if ((error as Error).message === 'No session') promptForTotp();
         } finally {
             isLoadingServices = false;
         }
@@ -138,47 +281,34 @@
     async function getServiceStatus(service: string) {
         selectedService = service;
         try {
-            const response = await fetch(`/api/helper-proxy?ip=${device.ip_addr}&endpoint=service/status&name=${service}`);
+            const response = await helperFetch(`service/status?name=${encodeURIComponent(service)}`);
             if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
             const data = await response.json();
             serviceStatus = data;
         } catch (error) {
             console.error("Error getting service status:", error);
             serviceStatus = null;
+            if ((error as Error).message === 'No session') promptForTotp();
         }
     }
     
     async function controlService(service: string, action: string) {
         try {
-            const response = await fetch(`/api/helper-proxy?ip=${device.ip_addr}&endpoint=service/control`, {
+            const response = await helperFetch('service/control', {
                 method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({
-                    service,
-                    action
-                })
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ service, action })
             });
             if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
-            
-            // Refresh service list and status
             await loadServices();
             if (selectedService === service) {
                 await getServiceStatus(service);
             }
         } catch (error) {
             console.error(`Error controlling service:`, error);
+            if ((error as Error).message === 'No session') promptForTotp();
         }
     }
-    
-    onMount(() => {
-        if (activeTab === 'packages') {
-            loadInstalledPackages();
-        } else {
-            loadServices();
-        }
-    });
 </script>
 
 <div class="container mx-auto px-4 py-8 min-h-screen">
@@ -200,12 +330,14 @@
     <div class="border-b border-neutral-800 mb-6">
         <div class="flex">
             <button 
+                type="button"
                 class="px-4 py-2 font-mono text-sm {activeTab === 'packages' ? 'bg-neutral-100 border-b-2 border-black font-bold' : 'bg-white hover:bg-neutral-50'}"
                 onclick={() => { activeTab = 'packages'; loadInstalledPackages(); }}
             >
                 Packages
             </button>
             <button 
+                type="button"
                 class="px-4 py-2 font-mono text-sm {activeTab === 'services' ? 'bg-neutral-100 border-b-2 border-black font-bold' : 'bg-white hover:bg-neutral-50'}"
                 onclick={() => { activeTab = 'services'; loadServices(); }}
             >
@@ -258,7 +390,7 @@
                                 <div class="col-span-1"></div>
                             </div>
                             {#each installedPackages.filter(pkg =>
-                                pkg.name.toLowerCase().includes(installedPackageQuery.toLowerCase())
+                                (pkg && pkg.name && pkg.name.toLowerCase().includes(installedPackageQuery.toLowerCase()))
                             ) as pkg}
                                 <div class="grid grid-cols-12 p-2 border-b border-neutral-200 last:border-b-0 items-center">
                                     <div class="col-span-8 font-mono text-sm">{pkg.name}</div>
@@ -513,5 +645,34 @@
                 </div>
             </div>
         </div>
+    {/if}
+
+    <!-- TOTP Modal -->
+    {#if showTotpModal}
+      <div class="fixed inset-0 bg-black/60 flex items-center justify-center z-50">
+        <div class="bg-white p-6 rounded shadow-lg w-full max-w-xs">
+          <h2 class="text-lg font-bold mb-2">Helper Authentication</h2>
+          <p class="mb-4 text-sm">Enter the 6-digit code from your Google Authenticator app for this device.</p>
+          <input
+            type="text"
+            maxlength="6"
+            class="border p-2 w-full mb-4 text-center text-lg tracking-widest font-mono"
+            bind:value={totpCode}
+            placeholder="Enter 6-digit code"
+            onkeydown={onTotpKeydown}
+            inputmode="numeric"
+            pattern="[0-9]*"
+            autocomplete="one-time-code"
+            aria-label="TOTP code"
+          />
+          {#if totpError}
+            <div class="text-red-600 text-xs mb-2">{totpError}</div>
+          {/if}
+          <div class="flex gap-2">
+            <button class="flex-1 bg-black text-white px-4 py-2 rounded" onclick={submitTotp}>Submit</button>
+            <button class="flex-1 bg-neutral-200 text-black px-4 py-2 rounded" onclick={cancelTotp}>Cancel</button>
+          </div>
+        </div>
+      </div>
     {/if}
 </div>

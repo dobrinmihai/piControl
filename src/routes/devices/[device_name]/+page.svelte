@@ -12,6 +12,13 @@
 
     let device = $state(data.device);
 
+    // Initialize sshHost when device is available
+    $effect(() => {
+        if (device?.ip_addr) {
+            sshHost = device.ip_addr;
+        }
+    });
+
     let term: any;
     let socket: any;
     let showCredentialsModal = $state(false);
@@ -20,7 +27,7 @@
     let sshUsername = $state("root");
     let loading = $state(false);
     let passwordInput = $state("");
-    let sshHost = $state(device.ip_addr);
+    let sshHost = $state("");
     let sshError = $state("");
     let sshLoading = $state(false);
     const deviceTypes = [
@@ -31,6 +38,109 @@
     let showDeleteConfirmModal = $state(false);
     let isDeleting = $state(false);
 
+    // --- TOTP Session Management ---
+    let showTotpModal = $state(false);
+    let totpCode = $state("");
+    let totpError = $state("");
+    let sessionId = $state("");
+
+    // Handle Enter key for TOTP input
+    function onTotpKeydown(e: KeyboardEvent) {
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            submitTotp();
+        }
+    }
+
+    function getSessionCookieKey() {
+        return `helper_session_${device.device_name || device.name || ''}`;
+    }
+
+    function setSessionCookie(sessionId: string) {
+        const key = getSessionCookieKey();
+        document.cookie = `${key}=${sessionId}; Path=/; Max-Age=1500; SameSite=Lax`;
+    }
+
+    function getSessionCookie() {
+        const key = getSessionCookieKey();
+        const match = document.cookie.match(new RegExp('(^| )' + key + '=([^;]+)'));
+        return match ? match[2] : null;
+    }
+
+    function clearSessionCookie() {
+        const key = getSessionCookieKey();
+        document.cookie = `${key}=; Path=/; Expires=Thu, 01 Jan 1970 00:00:01 GMT; SameSite=Lax`;
+    }
+
+    // --- Helper Proxy Fetch ---
+    async function helperProxyFetch(endpoint: string, options: any = {}) {
+        const ip = device.ip_addr;
+        const url = `/api/helper-proxy?ip=${encodeURIComponent(ip)}&endpoint=${encodeURIComponent(endpoint)}`;
+        return fetch(url, options);
+    }
+
+    async function submitTotp() {
+        totpError = "";
+        try {
+            const response = await helperProxyFetch('', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ totp_code: totpCode })
+            });
+            const data = await response.json();
+            if (!response.ok || !data.success) {
+                totpError = data.message || 'Invalid TOTP code';
+                return;
+            }
+            sessionId = data.session_id;
+            setSessionCookie(sessionId);
+            showTotpModal = false;
+            // Redirect to config page after successful authentication
+            window.location.href = `/devices/${device.device_name}/config`;
+        } catch (e) {
+            totpError = 'Failed to authenticate';
+        }
+    }
+
+    function cancelTotp() {
+        showTotpModal = false;
+        totpCode = "";
+        totpError = "";
+    }
+
+    async function checkExistingSession() {
+        const existingSession = getSessionCookie();
+        if (!existingSession) return false;
+        
+        try {
+            const response = await helperProxyFetch('auth/session', {
+                headers: { 'Authorization': `Bearer ${existingSession}` }
+            });
+            if (!response.ok) throw new Error('Session invalid');
+            const data = await response.json();
+            if (data.valid) {
+                sessionId = existingSession;
+                return true;
+            }
+        } catch {
+            clearSessionCookie();
+        }
+        return false;
+    }
+
+    async function openConfigPage() {
+        // Check if we have a valid session first
+        const hasValidSession = await checkExistingSession();
+        if (hasValidSession) {
+            // Redirect directly to config page
+            window.location.href = `/devices/${device.device_name}/config`;
+        } else {
+            // Show TOTP modal for authentication
+            showTotpModal = true;
+            totpCode = "";
+            totpError = "";
+        }
+    }
 
     async function getHelperStatus() {
     try {
@@ -367,13 +477,13 @@
                                                         <span class="font-mono text-xs text-neutral-600">({status.distribution})</span>
                                                     {/if}
                                                     {#if status.status === 'running'}
-                                                        <a 
-                                                            href="/devices/{device.device_name}/config" 
+                                                        <button 
+                                                            onclick={openConfigPage}
                                                             class="ml-3 h-7 px-3 py-1 font-mono text-xs bg-green-600 text-white hover:bg-green-700 inline-flex items-center justify-center rounded"
                                                         >
                                                             <Icon icon="lucide:settings" class="h-3 w-3 mr-1" />
                                                             Configure
-                                                        </a>
+                                                        </button>
                                                     {/if}
                                                 {:else}
                                                     <span class="inline-block w-2 h-2 rounded-full bg-gray-500"></span>
@@ -546,6 +656,35 @@
                 </div>
             </div>
         </div>
+    {/if}
+
+    <!-- TOTP Modal -->
+    {#if showTotpModal}
+      <div class="fixed inset-0 bg-black/60 flex items-center justify-center z-50">
+        <div class="bg-white p-6 rounded shadow-lg w-full max-w-xs">
+          <h2 class="text-lg font-bold mb-2">Helper Authentication</h2>
+          <p class="mb-4 text-sm">Enter the 6-digit code from your Google Authenticator app for this device.</p>
+          <input
+            type="text"
+            maxlength="6"
+            class="border p-2 w-full mb-4 text-center text-lg tracking-widest font-mono"
+            bind:value={totpCode}
+            placeholder="Enter 6-digit code"
+            onkeydown={onTotpKeydown}
+            inputmode="numeric"
+            pattern="[0-9]*"
+            autocomplete="one-time-code"
+            aria-label="TOTP code"
+          />
+          {#if totpError}
+            <div class="text-red-600 text-xs mb-2">{totpError}</div>
+          {/if}
+          <div class="flex gap-2">
+            <button class="flex-1 bg-black text-white px-4 py-2 rounded" onclick={submitTotp}>Submit</button>
+            <button class="flex-1 bg-neutral-200 text-black px-4 py-2 rounded" onclick={cancelTotp}>Cancel</button>
+          </div>
+        </div>
+      </div>
     {/if}
 
 <style>
