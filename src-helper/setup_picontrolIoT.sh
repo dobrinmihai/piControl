@@ -3,6 +3,152 @@
 # Exit on any error
 set -e
 
+# Check command line arguments
+if [ "$1" = "--show-qr" ] || [ "$1" = "--qr" ]; then
+    echo "🔐 PiControl Helper - TOTP QR Code Display"
+    echo "========================================"
+    
+    # Source the functions we need
+    function echo_error() {
+        echo -e "\e[91m$1\e[0m"
+    }
+    
+    function echo_success() {
+        echo -e "\e[92m$1\e[0m"
+    }
+    
+    function echo_info() {
+        echo -e "\e[96m$1\e[0m"
+    }
+    
+    function echo_warning() {
+        echo -e "\e[93m$1\e[0m"
+    }
+    
+    # Function to display TOTP QR code from existing configuration
+    display_existing_totp_qr() {
+        local config_dir="/opt/picontrol-helper/config"
+        local secret_file="$config_dir/totp_secret.json"
+        
+        if [ ! -f "$secret_file" ]; then
+            echo_warning "No existing TOTP configuration found at $secret_file"
+            echo_info "Please run the full setup first: sudo $0"
+            return 1
+        fi
+        
+        echo_info "Found existing TOTP configuration, displaying QR code..."
+        
+        # Extract secret from JSON file
+        if command -v jq &> /dev/null; then
+            # Use jq if available
+            SECRET=$(jq -r '.secret' "$secret_file" 2>/dev/null)
+            ACCOUNT_NAME=$(jq -r '.account_name' "$secret_file" 2>/dev/null)
+            ISSUER=$(jq -r '.issuer' "$secret_file" 2>/dev/null)
+        else
+            # Fallback to grep/sed parsing
+            SECRET=$(grep '"secret"' "$secret_file" | sed 's/.*"secret"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/')
+            ACCOUNT_NAME=$(grep '"account_name"' "$secret_file" | sed 's/.*"account_name"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/')
+            ISSUER=$(grep '"issuer"' "$secret_file" | sed 's/.*"issuer"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/')
+        fi
+        
+        if [ -z "$SECRET" ] || [ "$SECRET" = "null" ]; then
+            echo_error "Failed to extract TOTP secret from configuration file"
+            return 1
+        fi
+        
+        # Default values if not found
+        [ -z "$ACCOUNT_NAME" ] || [ "$ACCOUNT_NAME" = "null" ] && ACCOUNT_NAME="PiControl@$(hostname)"
+        [ -z "$ISSUER" ] || [ "$ISSUER" = "null" ] && ISSUER="PiControl Helper"
+        
+        # Construct TOTP URL
+        TOTP_URL="otpauth://totp/${ACCOUNT_NAME}?secret=${SECRET}&issuer=${ISSUER}"
+        
+        echo_success "================================================"
+        echo_success "📱 TOTP AUTHENTICATION QR CODE 📱"
+        echo_success "================================================"
+        echo_info "Account: $ACCOUNT_NAME"
+        echo_info "Issuer: $ISSUER"
+        echo_success "================================================"
+        
+        # Display QR code using qrencode
+        if command -v qrencode &> /dev/null; then
+            echo ""
+            qrencode -t UTF8 "$TOTP_URL"
+            echo ""
+            echo_success "📲 Scan this QR code with your authenticator app"
+            echo_info "  (Google Authenticator, Authy, Microsoft Authenticator, etc.)"
+        else
+            echo_warning "qrencode not found, installing it..."
+            # Detect OS and install qrencode
+            if [ -f /etc/os-release ]; then
+                . /etc/os-release
+                case $ID in
+                    debian|ubuntu|pop|linuxmint)
+                        apt-get update && apt-get install -y qrencode
+                        ;;
+                    fedora|rhel|centos)
+                        dnf install -y qrencode
+                        ;;
+                    arch|manjaro)
+                        pacman -Sy --noconfirm qrencode
+                        ;;
+                    *)
+                        echo_warning "Unable to install qrencode automatically."
+                        echo_info "Manual setup URL: $TOTP_URL"
+                        return 0
+                        ;;
+                esac
+                
+                # Try again after installation
+                if command -v qrencode &> /dev/null; then
+                    echo ""
+                    qrencode -t UTF8 "$TOTP_URL"
+                    echo ""
+                    echo_success "📲 Scan this QR code with your authenticator app"
+                else
+                    echo_info "Manual setup URL: $TOTP_URL"
+                fi
+            else
+                echo_info "Manual setup URL: $TOTP_URL"
+            fi
+        fi
+        
+        echo_success "================================================"
+        return 0
+    }
+    
+    if display_existing_totp_qr; then
+        echo_success "✅ QR code displayed successfully!"
+    else
+        echo_error "❌ Failed to display QR code."
+        exit 1
+    fi
+    exit 0
+fi
+
+if [ "$1" = "--help" ] || [ "$1" = "-h" ]; then
+    echo "PiControl Helper Setup Script"
+    echo "============================"
+    echo ""
+    echo "Usage: $0 [OPTIONS]"
+    echo ""
+    echo "Options:"
+    echo "  --help, -h      Show this help message"
+    echo "  --show-qr, --qr Display existing TOTP QR code"
+    echo ""
+    echo "Environment variables:"
+    echo "  BUILD_FROM_SOURCE=true  Force build from source"
+    echo "  USE_PREBUILT=true       Force use of prebuilt binary"
+    echo "  FORCE_BUILD=true        Same as BUILD_FROM_SOURCE"
+    echo ""
+    echo "Examples:"
+    echo "  sudo $0                 # Full setup"
+    echo "  sudo $0 --show-qr       # Display QR code only"
+    echo "  BUILD_FROM_SOURCE=true sudo $0  # Force source build"
+    echo ""
+    exit 0
+fi
+
 # Functions to output colored text
 function echo_error() {
     echo -e "\e[91m$1\e[0m"
@@ -76,17 +222,17 @@ install_packages() {
     case $DISTRO in
         debian|ubuntu|pop|linuxmint)
             apt-get update
-            apt-get install -y git curl build-essential
+            apt-get install -y git curl build-essential qrencode
             ;;
         fedora|rhel|centos)
-            dnf install -y git curl gcc make
+            dnf install -y git curl gcc make qrencode
             ;;
         arch|manjaro)
-            pacman -Sy --noconfirm git curl base-devel
+            pacman -Sy --noconfirm git curl base-devel qrencode
             ;;
         *)
             echo_error "Unsupported distribution: $DISTRO"
-            echo_info "Please manually install: git, curl, build-essential"
+            echo_info "Please manually install: git, curl, build-essential, qrencode"
             ;;
     esac
 }
@@ -447,14 +593,29 @@ chmod +x "$INSTALL_DIR/rebuild.sh"
 echo_info "Cleaning up temporary files..."
 rm -rf "$TEMP_DIR"
 
+# Try to display existing TOTP QR code
+echo_info "Checking for existing TOTP configuration..."
+if display_existing_totp_qr; then
+    echo_info "TOTP QR code displayed above. You can scan it with your authenticator app."
+else
+    echo_warning "🔑 SECURITY: Check the service logs for the TOTP QR code on first startup!"
+    echo_warning "📋 View logs with: journalctl -u $SERVICE_NAME -f"
+fi
+
 echo_success "======================================================"
 echo_success "PiControl Helper setup completed successfully!"
 echo_success "The service is running at: http://localhost:8220"
 echo_success ""
 echo_success "🔐 AUTHENTICATION SETUP:"
-echo_success "  On first startup, a TOTP QR code will be displayed"
-echo_success "  Scan it with your authenticator app (Google Authenticator, etc.)"
-echo_success "  Auth config will be saved to: $CONFIG_DIR"
+if [ -f "/opt/picontrol-helper/config/totp_secret.json" ]; then
+    echo_success "  ✅ TOTP already configured (QR code displayed above)"
+    echo_success "  🔄 To display QR code again: $0 --show-qr"
+else
+    echo_success "  ⏳ On first startup, a TOTP QR code will be displayed"
+    echo_success "  📋 Check service logs: journalctl -u $SERVICE_NAME -f"
+fi
+echo_success "  📱 Scan with your authenticator app (Google Authenticator, etc.)"
+echo_success "  💾 Auth config saved to: /opt/picontrol-helper/config"
 echo_success ""
 echo_success "📱 API Authentication:"
 echo_success "  1. POST /auth with TOTP code to get session"
@@ -481,5 +642,4 @@ echo_info "  BUILD_FROM_SOURCE=true - Force build from source"
 echo_info "  USE_PREBUILT=true - Force use of prebuilt binary"
 echo_info "  FORCE_BUILD=true - Same as BUILD_FROM_SOURCE"
 echo_info ""
-echo_warning "🔑 SECURITY: Check the service logs for the TOTP QR code on first startup!"
 echo_warning "📋 View logs with: journalctl -u $SERVICE_NAME -f"

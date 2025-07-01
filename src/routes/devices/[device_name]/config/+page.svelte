@@ -199,19 +199,40 @@
         }
     }
     
+    // Add a variable to store the last raw search response for debug
+    let lastSearchResponse: any = $state(null);
+
     async function searchPackages() {
-        if (!packageQuery.trim()) return;
+        if (!packageQuery.trim()) {
+            searchResults = [];
+            lastSearchResponse = null;
+            console.log('[DEBUG] searchPackages: empty query, clearing results');
+            return;
+        }
         isLoadingSearch = true;
+        console.log('[DEBUG] searchPackages: sending GET search?query=' + packageQuery);
         try {
-            const response = await helperFetch(`search?query=${encodeURIComponent(packageQuery)}`);
-            if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+            const url = `search?query=${encodeURIComponent(packageQuery)}`;
+            const response = await helperFetch(url, { method: 'GET' });
+            console.log('[DEBUG] searchPackages: response status', response.status);
             const data = await response.json();
-            searchResults = data.results || [];
+            lastSearchResponse = data;
+            console.log('[DEBUG] searchPackages: response data', data);
+            if (data.success && Array.isArray(data.results)) {
+                searchResults = data.results;
+                console.log('[DEBUG] searchPackages: results set', searchResults);
+            } else {
+                searchResults = [];
+                console.log('[DEBUG] searchPackages: no results or API error', data);
+            }
         } catch (error) {
-            console.error("Error searching packages:", error);
+            console.error('[DEBUG] Error searching packages:', error);
             if ((error as Error).message === 'No session') promptForTotp();
+            searchResults = [];
+            lastSearchResponse = { error: String(error) };
         } finally {
             isLoadingSearch = false;
+            console.log('[DEBUG] searchPackages: done, isLoadingSearch =', isLoadingSearch);
         }
     }
     
@@ -414,7 +435,7 @@
             <!-- Search and Install Packages -->
             <div class="border border-neutral-800 bg-white">
                 <div class="px-4 pt-4 pb-2 border-b border-neutral-800">
-                    <h2 class="font-mono text-xl font-bold">Install Packages</h2>
+                    <h2 class="font-mono text-base font-bold">Install Packages</h2>
                 </div>
                 
                 <div class="p-4">
@@ -466,11 +487,19 @@
                                 {/each}
                             </div>
                         </div>
+                    {:else if lastSearchResponse}
+                        <div class="mb-4">
+                            <p class="font-mono text-sm text-neutral-500">No packages found for your query.</p>
+                            <details class="mt-2 bg-neutral-100 p-2 rounded text-xs">
+                                <summary class="cursor-pointer font-bold">Show raw API response</summary>
+                                <pre>{JSON.stringify(lastSearchResponse, null, 2)}</pre>
+                            </details>
+                        </div>
                     {/if}
                     
                     <!-- Installation Queue -->
                     <div>
-                        <h3 class="font-mono text-md font-bold mb-2">Installation Queue</h3>
+                        <h3 class="font-mono text-base font-bold mb-2">Installation Queue</h3>
                         {#if packageInstallList.length === 0}
                             <div class="py-4 text-center border border-dashed border-neutral-300">
                                 <p class="font-mono text-sm text-neutral-500">No packages in queue</p>

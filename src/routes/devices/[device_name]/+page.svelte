@@ -4,6 +4,7 @@
     import { pb } from "$lib/pocketbase.js";
     import { onMount } from "svelte";
     import { browser } from "$app/environment";
+    import { env } from "$env/dynamic/public";
     import Icon from "@iconify/svelte";
     import SshModal from '$lib/components/SshModal.svelte';
 
@@ -141,6 +142,8 @@
             totpError = "";
         }
     }
+
+    let helperStatus = $state<any>(null);
 
     async function getHelperStatus() {
     try {
@@ -282,26 +285,81 @@
     }
 
     async function initTerminal(password: string) {
-        // Dynamically import Terminal only in the browser
+        // Dynamically import Terminal and addons only in the browser
         const { Terminal } = await import("xterm");
+        const { FitAddon } = await import("xterm-addon-fit");
 
-        // Initialize terminal
-        term = new Terminal();
+        // Initialize terminal with proper configuration
+        term = new Terminal({
+            cursorBlink: true,
+            fontFamily: 'Monaco, Consolas, "Courier New", monospace',
+            fontSize: 14,
+            lineHeight: 1.2,
+            theme: {
+                background: '#000000',
+                foreground: '#ffffff',
+                cursor: '#ffffff',
+            },
+            convertEol: true,
+            disableStdin: false,
+            scrollback: 1000
+        });
+
+        // Add fit addon for proper sizing
+        const fitAddon = new FitAddon();
+        term.loadAddon(fitAddon);
+
         const terminalElement = document.getElementById("terminal");
         if (terminalElement) {
             term.open(terminalElement);
+            
+            // Fit terminal to container after opening
+            setTimeout(() => {
+                fitAddon.fit();
+                
+                // Send resize information to SSH session
+                if (socket && socket.readyState === WebSocket.OPEN) {
+                    const msg = {
+                        type: "resize",
+                        cols: term.cols,
+                        rows: term.rows
+                    };
+                    socket.send(JSON.stringify(msg));
+                }
+            }, 100);
+            
+            // Handle window resize
+            const handleWindowResize = () => {
+                if (fitAddon && term) {
+                    setTimeout(() => {
+                        fitAddon.fit();
+                        if (socket && socket.readyState === WebSocket.OPEN) {
+                            const msg = {
+                                type: "resize",
+                                cols: term.cols,
+                                rows: term.rows
+                            };
+                            socket.send(JSON.stringify(msg));
+                        }
+                    }, 10);
+                }
+            };
+            
+            window.addEventListener('resize', handleWindowResize);
         } else {
             console.error("Terminal element not found");
         }
 
         // Native WebSocket connection to Go backend
-        socket = new WebSocket(`wss://localhost:3000/ws`);
+        socket = new WebSocket(env.PUBLIC_NETSSH_WS_URL || 'ws://localhost:3000/ws');
         socket.onopen = () => {
             const msg = {
                 type: "start_ssh",
                 hostname: sshHost,
                 username: sshUsername,
                 password: password,
+                cols: term.cols,
+                rows: term.rows
             };
             socket.send(JSON.stringify(msg));
         };
@@ -365,6 +423,10 @@
         if (!device) {
             fetchDevice();
         }
+        // Fetch helper status only in the browser
+        getHelperStatus().then(status => {
+            helperStatus = status;
+        });
     });
 </script>
 
@@ -463,36 +525,33 @@
                                 </span>
                             {/if}
                             {#if device.type === "raspberrypi"}
-                                {#await getHelperStatus() then status}
-                                    <!-- Helper Status -->              
-                                    <div class="border-b border-neutral-800 py-3">
-                                        <div class="flex justify-between items-center">
-                                            <span class="font-mono text-sm text-neutral-600">Helper Status:</span>
-                                            <div class="flex items-center gap-2">
-                                                {#if status}
-                                                    <span class="inline-block w-2 h-2 rounded-full 
-                                                        {status.status === 'running' ? 'bg-green-500' : 'bg-red-500'}"></span>
-                                                    <span class="font-mono text-sm text-black">{status.status || "Unknown"}</span>
-                                                    {#if status.distribution}
-                                                        <span class="font-mono text-xs text-neutral-600">({status.distribution})</span>
-                                                    {/if}
-                                                    {#if status.status === 'running'}
-                                                        <button 
-                                                            onclick={openConfigPage}
-                                                            class="ml-3 h-7 px-3 py-1 font-mono text-xs bg-green-600 text-white hover:bg-green-700 inline-flex items-center justify-center rounded"
-                                                        >
-                                                            <Icon icon="lucide:settings" class="h-3 w-3 mr-1" />
-                                                            Configure
-                                                        </button>
-                                                    {/if}
-                                                {:else}
-                                                    <span class="inline-block w-2 h-2 rounded-full bg-gray-500"></span>
-                                                    <span class="font-mono text-sm text-black">Not available</span>
+                                <div class="border-b border-neutral-800 py-3">
+                                    <div class="flex justify-between items-center">
+                                        <span class="font-mono text-sm text-neutral-600">Helper Status:</span>
+                                        <div class="flex items-center gap-2">
+                                            {#if helperStatus}
+                                                <span class="inline-block w-2 h-2 rounded-full 
+                                                    {helperStatus.status === 'running' ? 'bg-green-500' : 'bg-red-500'}"></span>
+                                                <span class="font-mono text-sm text-black">{helperStatus.status || "Unknown"}</span>
+                                                {#if helperStatus.distribution}
+                                                    <span class="font-mono text-xs text-neutral-600">({helperStatus.distribution})</span>
                                                 {/if}
-                                            </div>
+                                                {#if helperStatus.status === 'running'}
+                                                    <button 
+                                                        onclick={openConfigPage}
+                                                        class="ml-3 h-7 px-3 py-1 font-mono text-xs bg-green-600 text-white hover:bg-green-700 inline-flex items-center justify-center rounded"
+                                                    >
+                                                        <Icon icon="lucide:settings" class="h-3 w-3 mr-1" />
+                                                        Configure
+                                                    </button>
+                                                {/if}
+                                            {:else}
+                                                <span class="inline-block w-2 h-2 rounded-full bg-gray-500"></span>
+                                                <span class="font-mono text-sm text-black">Not available</span>
+                                            {/if}
                                         </div>
                                     </div>
-                                {/await}
+                                </div>
                             {/if}
                         </div>
                     </div>
